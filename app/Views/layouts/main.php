@@ -35,7 +35,8 @@
                 <ul tabindex="0" class="menu menu-sm dropdown-content bg-base-100 rounded-box z-[1] mt-3 w-52 p-2 shadow">
                     <li><a href="<?= base_url('/') ?>" class="<?= (url_is('/') ? 'font-semibold underline decoration-2 decoration-green-500 bg-green-100' : '') ?>">Dashboard</a></li>
                     <li><a href="<?= base_url('log') ?>" class="<?= (url_is('log') ? 'font-semibold underline decoration-2 decoration-green-500 bg-green-100' : '') ?>">Log Data</a></li>
-                    <li><a href="<?= base_url('kalibrasi') ?>" class="<?= (url_is('kalibrasi') ? 'font-semibold underline decoration-2 decoration-green-500 bg-green-100' : '') ?>">Kalibrasi</a></li>
+                    <li><a href="<?= base_url('calibration') ?>" class="<?= (url_is('calibration') ? 'font-semibold underline decoration-2 decoration-green-500 bg-green-100' : '') ?>">Kalibrasi</a></li>
+                    <li><a href="<?= base_url('settings') ?>" class="<?= (url_is('settings') ? 'font-semibold underline decoration-2 decoration-green-500 bg-green-100' : '') ?>">Pengaturan</a></li>
                     <?php if (session()->get('role') === 'admin'): ?>
                         <li><a href="<?= base_url('users/new') ?>" class="<?= (url_is('users*') ? 'font-semibold underline decoration-2 decoration-green-500 bg-green-100' : '') ?>">Tambah User</a></li>
                     <?php endif; ?>
@@ -56,7 +57,8 @@
             <ul class="menu menu-horizontal px-1 space-x-2">
                 <li><a href="<?= base_url('/') ?>" class="btn btn-sm <?= (url_is('/') ? 'underline decoration-2 decoration-green-500 bg-green-100' : 'btn-ghost') ?>">Dashboard</a></li>
                 <li><a href="<?= base_url('log') ?>" class="btn btn-sm <?= (url_is('log') ? 'underline decoration-2 decoration-green-500 bg-green-100' : 'btn-ghost') ?>">Log Data</a></li>
-                <li><a href="<?= base_url('kalibrasi') ?>" class="btn btn-sm <?= (url_is('kalibrasi') ? 'underline decoration-2 decoration-green-500 bg-green-100' : 'btn-ghost') ?>">Kalibrasi</a></li>
+                <li><a href="<?= base_url('calibration') ?>" class="btn btn-sm <?= (url_is('calibration') ? 'underline decoration-2 decoration-green-500 bg-green-100' : 'btn-ghost') ?>">Kalibrasi</a></li>
+                <li><a href="<?= base_url('settings') ?>" class="btn btn-sm <?= (url_is('settings') ? 'underline decoration-2 decoration-green-500 bg-green-100' : 'btn-ghost') ?>">Pengaturan</a></li>
                  <?php if (session()->get('role') === 'admin'): ?>
                     <li><a href="<?= base_url('users/new') ?>" class="btn btn-sm <?= (url_is('users*') ? 'underline decoration-2 decoration-green-500 bg-green-100' : 'btn-ghost') ?>">Tambah User</a></li>
                 <?php endif; ?>
@@ -93,7 +95,11 @@
     <div class="container mx-auto px-4 py-8 max-w-7xl">
         <?= $this->renderSection('content') ?>
     </div>
-    <script src="<?= base_url('assets/app.js') ?>" defer></script>
+    <?php 
+    // Cache busting: gunakan file modification time agar browser reload hanya ketika file berubah
+    $appJsVersion = file_exists(FCPATH . 'assets/app.js') ? filemtime(FCPATH . 'assets/app.js') : time();
+    ?>
+    <script src="<?= base_url('assets/app.js?v=' . $appJsVersion) ?>"></script>
     <div id="pwa-install" style="position:fixed;right:16px;bottom:16px;z-index:9999;display:none">
         <button id="btnInstall" class="btn btn-success shadow-lg">Install App</button>
     </div>

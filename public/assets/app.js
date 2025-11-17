@@ -127,7 +127,8 @@ function initMqtt() {
       month: "short",
       day: "numeric",
     });
-    const norm = normalizeTelemetry(data);
+    
+    // Trigger refresh dari database untuk mendapatkan nilai terkalibrasi
     if (topic === TOPIC_TLM_A) {
       // Update last update timestamp for Kebun A
       const lastUpdateA = document.getElementById("last-update-a");
@@ -135,19 +136,9 @@ function initMqtt() {
         lastUpdateA.textContent = `Last update: ${currentTime}`;
         lastUpdateA.title = `Update: ${dateString}`;
       }
-      // Update UI directly from MQTT
-      updateDisplayValues(norm, "A");
-      updateCharts(norm, 1);
-      if (norm.cal_ph_asam || norm.cal_ph_netral || norm.cal_tds_k) {
-        try {
-          updateCalibrationDisplay(norm, "A");
-        } catch {}
-      }
-      console.log("📥 MQTT → UI (A)", norm, now.toISOString());
-      // Auto mode check
-      if (pumpModeA === "auto") {
-        checkAutoConditions(norm, "A");
-      }
+      // Fetch data terkalibrasi dari database
+      fetchCalibratedData("A");
+      console.log("📥 MQTT → Fetch calibrated data (A)", now.toISOString());
     } else if (topic === TOPIC_TLM_B) {
       // Update last update timestamp for Kebun B
       const lastUpdateB = document.getElementById("last-update-b");
@@ -155,18 +146,9 @@ function initMqtt() {
         lastUpdateB.textContent = `Last update: ${currentTime}`;
         lastUpdateB.title = `Update: ${dateString}`;
       }
-      updateDisplayValues(norm, "B");
-      updateCharts(norm, 2);
-      if (norm.cal_ph_asam || norm.cal_ph_netral || norm.cal_tds_k) {
-        try {
-          updateCalibrationDisplay(norm, "B");
-        } catch {}
-      }
-      console.log("📥 MQTT → UI (B)", norm, now.toISOString());
-      // Auto mode check
-      if (pumpModeB === "auto") {
-        checkAutoConditions(norm, "B");
-      }
+      // Fetch data terkalibrasi dari database
+      fetchCalibratedData("B");
+      console.log("📥 MQTT → Fetch calibrated data (B)", now.toISOString());
     } else {
       // Wildcard route: hidroganik/{kebun-id}/telemetry
       const m = topic.match(/^hidroganik\/(kebun-[^/]+)\/telemetry$/i);
@@ -182,19 +164,9 @@ function initMqtt() {
           lastUpdateEl.textContent = `Last update: ${currentTime}`;
           lastUpdateEl.title = `Update: ${dateString}`;
         }
-        updateDisplayValues(norm, unit);
-        updateCharts(norm, unit === "A" ? 1 : 2);
-        if (norm.cal_ph_asam || norm.cal_ph_netral || norm.cal_tds_k) {
-          try {
-            updateCalibrationDisplay(norm, unit);
-          } catch {}
-        }
-        console.log(`📥 MQTT → UI (${kebunId})`, norm, now.toISOString());
-        // Auto mode check
-        const currentMode = unit === "A" ? pumpModeA : pumpModeB;
-        if (currentMode === "auto") {
-          checkAutoConditions(norm, unit);
-        }
+        // Fetch data terkalibrasi dari database
+        fetchCalibratedData(unit);
+        console.log(`📥 MQTT → Fetch calibrated data (${kebunId})`, now.toISOString());
       } else {
         console.warn("MQTT topic tidak dikenali untuk routing:", topic);
       }
@@ -418,6 +390,10 @@ document.addEventListener("DOMContentLoaded", function () {
   console.log(
     `[${startTime}] 📊 Buka Console untuk melihat semua aktivitas sistem`
   );
+
+  // Load initial calibrated data from database
+  fetchCalibratedData("A");
+  fetchCalibratedData("B");
 
   // Save charts on unload just in case
   window.addEventListener("beforeunload", () => {
@@ -1100,7 +1076,7 @@ function updateDisplayValues(data, device = "A") {
   // Update main overview (always use Device A data for main display)
   if (device === "A") {
     // Show temperature as integer (no decimals)
-    setText("suhu-value", data.suhu, 0);
+    setText("suhu-value", data.suhu_air || data.suhu, 0);
     // Format pH with 1 decimal place per request
     setText("ph-value", data.ph, 1);
     setText("tds-value", data.tds, 0);
@@ -1115,7 +1091,47 @@ function updateDisplayValues(data, device = "A") {
   setText(`device${deviceNum}-ph`, data.ph, 1);
   setText(`device${deviceNum}-tds`, data.tds, 0);
   // Temperature as integer for device displays
-  setText(`device${deviceNum}-suhu`, data.suhu, 0);
+  setText(`device${deviceNum}-suhu`, data.suhu_air || data.suhu, 0);
+}
+
+// Fetch calibrated data from database API
+async function fetchCalibratedData(kebun) {
+  try {
+    const response = await fetch(`/api/telemetry/latest?kebun=${kebun.toLowerCase()}`);
+    if (!response.ok) {
+      console.warn(`Failed to fetch calibrated data for Kebun ${kebun}`);
+      return;
+    }
+    const result = await response.json();
+    if (result.status === 'success' && result.data) {
+      const data = result.data;
+      console.log(`✅ Loaded calibrated data for Kebun ${kebun}:`, data);
+      
+      // Update display with calibrated values
+      updateDisplayValues(data, kebun);
+      
+      // Update charts with calibrated values
+      const chartNum = kebun === "A" ? 1 : 2;
+      updateCharts(data, chartNum);
+      
+      // Update calibration display if available
+      if (data.cal_ph_asam || data.cal_ph_netral || data.cal_tds_k) {
+        try {
+          updateCalibrationDisplay(data, kebun);
+        } catch (e) {
+          console.warn("Failed to update calibration display:", e);
+        }
+      }
+      
+      // Auto mode check
+      const currentMode = kebun === "A" ? pumpModeA : pumpModeB;
+      if (currentMode === "auto") {
+        checkAutoConditions(data, kebun);
+      }
+    }
+  } catch (error) {
+    console.error(`Error fetching calibrated data for Kebun ${kebun}:`, error);
+  }
 }
 
 function updateCharts(data, chartNumber) {
@@ -1127,17 +1143,20 @@ function updateCharts(data, chartNumber) {
 
   const chartData = chartNumber === 1 ? chartData1 : chartData2;
   const chart = chartNumber === 1 ? chart1 : chart2;
+  
+  // Support both suhu and suhu_air field names
+  const suhuValue = data.suhu_air !== undefined ? data.suhu_air : data.suhu;
 
   if (
     chart &&
     data.ph !== undefined &&
     data.tds !== undefined &&
-    data.suhu !== undefined
+    suhuValue !== undefined
   ) {
     chartData.labels.push(timeLabel);
     chartData.ph.push(parseFloat(data.ph));
     chartData.tds.push(parseFloat(data.tds));
-    chartData.suhu.push(parseFloat(data.suhu));
+    chartData.suhu.push(parseFloat(suhuValue));
 
     // Keep only last 20 data points
     if (chartData.labels.length > MAX_CHART_POINTS) {

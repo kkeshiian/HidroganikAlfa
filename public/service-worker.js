@@ -1,4 +1,4 @@
-const CACHE_NAME = "hidroganik-cache-v1";
+const CACHE_NAME = "hidroganik-cache-v2"; // Increment version to force update
 const APP_SHELL = [
   "/",
   "/assets/styles.css",
@@ -13,6 +13,8 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
   );
+  // Force the waiting service worker to become the active service worker
+  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -25,10 +27,20 @@ self.addEventListener("activate", (event) => {
         )
       )
   );
+  // Claim all clients immediately
+  return self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
+  const url = new URL(req.url);
+  
+  // NEVER cache API requests
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(fetch(req));
+    return;
+  }
+  
   // Network-first for HTML pages, cache-first for others
   if (req.headers.get("accept")?.includes("text/html")) {
     event.respondWith(

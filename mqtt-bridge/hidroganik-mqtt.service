@@ -1,0 +1,24 @@
+[Unit]
+Description=Hidroganik MQTT Bridge Service
+Documentation=https://github.com/kkeshiian/HidroganikAlfa
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/hidroganik/mqtt-bridge
+ExecStart=/usr/bin/node ingest.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hidroganik-mqtt
+
+# Environment variables
+Environment=NODE_ENV=production
+Environment=MQTT_URL=wss://broker.emqx.io:8084/mqtt
+Environment=INGEST_URL=http://localhost:8080/api/telemetry/ingest
+Environment=INGEST_TOKEN=rahasia-hidroganik-2025
+
+[Install]
+WantedBy=multi-user.target

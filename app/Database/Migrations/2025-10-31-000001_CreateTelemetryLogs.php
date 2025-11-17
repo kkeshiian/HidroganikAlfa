@@ -34,7 +34,7 @@ class CreateTelemetryLogs extends Migration
                 'constraint' => 11,
                 'null' => true,
             ],
-            'suhu' => [
+            'suhu_air' => [
                 'type' => 'DECIMAL',
                 'constraint' => '5,2',
                 'null' => true,
@@ -53,6 +53,16 @@ class CreateTelemetryLogs extends Migration
                 'type' => 'DECIMAL',
                 'constraint' => '10,4',
                 'null' => true,
+            ],
+            'date' => [
+                'type' => 'DATE',
+                'null' => true,
+                'comment' => 'Date from MQTT payload',
+            ],
+            'time' => [
+                'type' => 'TIME',
+                'null' => true,
+                'comment' => 'Time from MQTT payload',
             ],
             'timestamp_ms' => [
                 'type' => 'BIGINT',

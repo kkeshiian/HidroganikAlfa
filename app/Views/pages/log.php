@@ -1,5 +1,8 @@
 <?= $this->extend('layouts/main') ?>
 <?= $this->section('head_extra') ?>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <style>
     .table-row:hover { background-color:#f9fafb; }
     .loading-spinner { border:3px solid #f3f3f3;border-top:3px solid #10b981;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite }
@@ -11,7 +14,7 @@
     <div class="card-body">
         <h2 class="card-title text-success mb-2">Filter Data</h2>
         <div class="space-y-4">
-            <div class="grid gap-4 md:grid-cols-4">
+            <div class="grid gap-4 md:grid-cols-5">
                 <div class="form-control min-w-0">
                     <label class="label"><span class="label-text font-medium">Tanggal Mulai</span></label>
                     <input type="date" id="start-date" class="input input-bordered input-success w-full leading-tight" />
@@ -28,6 +31,23 @@
                         <option value="B">Perangkat B</option>
                     </select>
                 </div>
+                <div class="form-control min-w-0">
+                    <label class="label">
+                        <span class="label-text font-medium">Interval Sampling</span>
+                        <span class="label-text-alt text-info cursor-help" title="Tampilkan data dengan interval waktu tertentu">ℹ️</span>
+                    </label>
+                    <select id="interval-filter" class="select select-bordered select-success w-full">
+                        <option value="all">Semua Data</option>
+                        <option value="5">5 Detik</option>
+                        <option value="10">10 Detik</option>
+                        <option value="30">30 Detik</option>
+                        <option value="60">1 Menit</option>
+                        <option value="300">5 Menit</option>
+                        <option value="600">10 Menit</option>
+                        <option value="1800">30 Menit</option>
+                        <option value="3600">1 Jam</option>
+                    </select>
+                </div>
                 <div class="form-control min-w-0 flex flex-col justify-end">
                     <button id="export-csv" class="btn btn-success w-full gap-2 text-white" aria-label="Export CSV">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -36,6 +56,14 @@
                         <span>Export CSV</span>
                     </button>
                 </div>
+            </div>
+            <div class="flex justify-end mt-4">
+                <button id="toggle-refresh" class="btn btn-success btn-sm gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" id="refresh-icon">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span id="refresh-text">Auto Refresh ON</span>
+                </button>
             </div>
         </div>
         <div class="divider text-success font-semibold">Statistik Data</div>
@@ -62,7 +90,15 @@
 <div class="card bg-base-100 shadow-lg">
     <div class="card-header bg-base-200 p-4 flex justify-between items-center">
         <h3 class="text-lg font-semibold text-success">Data History</h3>
-        <div class="badge badge-success badge-outline"><span id="data-count">0</span> entries</div>
+        <div class="flex gap-2">
+            <div class="badge badge-info badge-outline hidden" id="interval-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span id="interval-text">Interval: --</span>
+            </div>
+            <div class="badge badge-success badge-outline"><span id="data-count">0</span> entries</div>
+        </div>
     </div>
     <div class="card-body p-0">
         <div class="overflow-x-auto">
@@ -118,34 +154,38 @@ let currentPage = 1;
 let perPage = 25;
 let currentSort = 'desc'; // server-side sort by timestamp_ms
 let currentItems = [];
+let autoRefreshInterval = null;
+let autoRefreshEnabled = true;
+const REFRESH_INTERVAL = 5000; // 5 seconds
 
 document.addEventListener('DOMContentLoaded', ()=>{
+    console.log('[LOG] Page loaded, initializing...');
     initLiveClock();
     initLogo();
     initFilters();
+    console.log('[LOG] Loading initial data...');
     loadLogData();
+    startAutoRefresh();
 });
 
 function initFilters(){
     const startInput = document.getElementById('start-date');
     const endInput = document.getElementById('end-date');
     const deviceSel = document.getElementById('device-filter');
-    // default to last 7 days
-    const now = new Date();
-    const endStr = now.toISOString().slice(0,10);
-    const past = new Date(now.getTime() - 6*24*60*60*1000);
-    const startStr = past.toISOString().slice(0,10);
-    if (startInput && !startInput.value) startInput.value = startStr;
-    if (endInput && !endInput.value) endInput.value = endStr;
+    const intervalSel = document.getElementById('interval-filter');
+    // No default date filter - show all data
     if (deviceSel && !deviceSel.value) deviceSel.value = 'all';
+    if (intervalSel && !intervalSel.value) intervalSel.value = 'all';
 
     startInput?.addEventListener('change', onFilterChange);
     endInput?.addEventListener('change', onFilterChange);
     deviceSel?.addEventListener('change', onFilterChange);
+    intervalSel?.addEventListener('change', onFilterChange);
 
     document.getElementById('prev-page')?.addEventListener('click', ()=>{ if(currentPage>1){ currentPage--; loadLogData(); } });
     document.getElementById('next-page')?.addEventListener('click', ()=>{ currentPage++; loadLogData(); });
     document.getElementById('export-csv')?.addEventListener('click', exportCsv);
+    document.getElementById('toggle-refresh')?.addEventListener('click', toggleAutoRefresh);
 }
 
 function onFilterChange(){
@@ -153,64 +193,140 @@ function onFilterChange(){
     loadLogData();
 }
 
-async function loadLogData(){
+function startAutoRefresh(){
+    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    if (autoRefreshEnabled) {
+        autoRefreshInterval = setInterval(() => {
+            loadLogData(true); // silent refresh
+        }, REFRESH_INTERVAL);
+        updateRefreshButton();
+    }
+}
+
+function stopAutoRefresh(){
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+    }
+}
+
+function toggleAutoRefresh(){
+    autoRefreshEnabled = !autoRefreshEnabled;
+    if (autoRefreshEnabled) {
+        startAutoRefresh();
+        loadLogData();
+    } else {
+        stopAutoRefresh();
+    }
+    updateRefreshButton();
+}
+
+function updateRefreshButton(){
+    const btn = document.getElementById('toggle-refresh');
+    const icon = document.getElementById('refresh-icon');
+    const text = document.getElementById('refresh-text');
+    if (!btn) return;
+    if (autoRefreshEnabled) {
+        btn.classList.remove('btn-outline');
+        btn.classList.add('btn-success');
+        if (text) text.textContent = 'Auto Refresh ON';
+        if (icon) icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />';
+    } else {
+        btn.classList.add('btn-outline');
+        btn.classList.remove('btn-success');
+        if (text) text.textContent = 'Auto Refresh OFF';
+        if (icon) icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />';
+    }
+}
+
+async function loadLogData(silent = false){
     const loading = document.getElementById('loading-indicator');
     const noData = document.getElementById('no-data-message');
     const table = document.getElementById('log-table');
-    loading?.classList.remove('hidden');
-    noData?.classList.add('hidden');
-    if (table) table.style.display = '';
+    
+    console.log('[LOG] loadLogData called, silent:', silent);
+    
+    if (!silent) {
+        loading?.classList.remove('hidden');
+        noData?.classList.add('hidden');
+        if (table) table.style.display = '';
+    }
 
     const start = document.getElementById('start-date')?.value || '';
     const end = document.getElementById('end-date')?.value || '';
     const deviceVal = document.getElementById('device-filter')?.value || 'all';
     const device = (deviceVal==='A' || deviceVal==='B') ? deviceVal : 'all';
+    const intervalVal = document.getElementById('interval-filter')?.value || 'all';
 
     const params = new URLSearchParams({
         start, end,
         device,
+        interval: intervalVal,
         page: String(currentPage),
         perPage: String(perPage),
         sort: currentSort
     });
+    
+    const url = `/api/telemetry?${params.toString()}`;
+    console.log('[LOG] Fetching:', url);
+    
     try{
-        const res = await fetch(`/api/telemetry?${params.toString()}`, {headers:{'Accept':'application/json'}});
+        const res = await fetch(url, {headers:{'Accept':'application/json'}});
+        console.log('[LOG] Response status:', res.status);
+        
         const data = await res.json();
+        console.log('[LOG] Data received:', data);
+        
         currentItems = Array.isArray(data.items) ? data.items : [];
+        console.log('[LOG] Items count:', currentItems.length);
+        
+        // Update interval badge
+        updateIntervalBadge(data.interval);
+        
         renderStats(data.stats || {});
         renderTable(currentItems);
         renderPagination(data.page||1, data.perPage||perPage, data.total||0);
     }catch(err){
-        console.error('Gagal memuat data', err);
-        showNoData('Gagal memuat data dari server');
+        console.error('[LOG] Gagal memuat data', err);
+        if (!silent) showNoData('Gagal memuat data dari server');
     } finally {
-        loading?.classList.add('hidden');
+        if (!silent) loading?.classList.add('hidden');
     }
 }
 
 function renderStats(stats){
-    document.getElementById('total-records').textContent = String(stats.total ?? '');
-    document.getElementById('avg-ph').textContent = (stats.avg_ph ?? 0).toFixed ? (stats.avg_ph).toFixed(2) : String(stats.avg_ph ?? '0.00');
-    document.getElementById('avg-tds').textContent = String(stats.avg_tds ?? '0');
-    document.getElementById('avg-temp').textContent = (stats.avg_suhu ?? 0).toFixed ? `${(stats.avg_suhu).toFixed(2)}°C` : `${stats.avg_suhu ?? '0.00'}°C`;
+    console.log('[LOG] Rendering stats:', stats);
+    
+    const totalRecords = stats.total ?? 0;
+    const avgPh = stats.avg_ph ?? null;
+    const avgTds = stats.avg_tds ?? null;
+    const avgSuhuAir = stats.avg_suhu_air ?? null;
+    
+    document.getElementById('total-records').textContent = String(totalRecords);
+    document.getElementById('avg-ph').textContent = avgPh !== null && typeof avgPh === 'number' ? avgPh.toFixed(2) : '0.00';
+    document.getElementById('avg-tds').textContent = avgTds !== null && typeof avgTds === 'number' ? Math.round(avgTds).toString() : '0';
+    document.getElementById('avg-temp').textContent = avgSuhuAir !== null && typeof avgSuhuAir === 'number' ? `${avgSuhuAir.toFixed(2)}°C` : '0.00°C';
 }
 
 function renderTable(items){
     const body = document.getElementById('log-table-body');
     const countEl = document.getElementById('data-count');
     if (!body) return;
+    
+    console.log('[LOG] Rendering table with items:', items.length);
+    
     body.innerHTML = '';
     items.forEach(row=>{
         const tr = document.createElement('tr');
         tr.className = 'table-row';
-        const dt = row.timestamp_ms ? new Date(row.timestamp_ms) : null;
-        const timeStr = dt ? dt.toLocaleString('id-ID',{hour12:false}) : (row.created_at || '-');
+        // Use date and time directly from MQTT
+        const timeStr = (row.date && row.time) ? `${row.date} ${row.time}` : (row.created_at || '-');
         tr.innerHTML = `
             <td>${timeStr}</td>
             <td>${row.device ?? '-'}</td>
             <td>${fmtNum(row.ph, 2)}</td>
             <td>${fmtNum(row.tds, 0)}</td>
-            <td>${fmtNum(row.suhu, 2)}</td>
+            <td>${fmtNum(row.suhu_air, 2)}</td>
             <td>${fmtNum(row.cal_ph_asam, 4)}</td>
             <td>${fmtNum(row.cal_ph_netral, 4)}</td>
             <td>${fmtNum(row.cal_tds_k, 4)}</td>
@@ -218,7 +334,13 @@ function renderTable(items){
         body.appendChild(tr);
     });
     countEl && (countEl.textContent = String(items.length));
-    if (items.length === 0) showNoData();
+    
+    if (items.length === 0) {
+        console.log('[LOG] No data to display');
+        showNoData();
+    } else {
+        console.log('[LOG] Table rendered successfully');
+    }
 }
 
 function renderPagination(page, perPageVal, total){
@@ -252,6 +374,32 @@ function showNoData(msg){
     }
 }
 
+function updateIntervalBadge(intervalSeconds){
+    const badge = document.getElementById('interval-badge');
+    const text = document.getElementById('interval-text');
+    
+    if (!badge || !text) return;
+    
+    if (intervalSeconds && intervalSeconds > 0) {
+        badge.classList.remove('hidden');
+        
+        let intervalText = '';
+        if (intervalSeconds < 60) {
+            intervalText = `${intervalSeconds} detik`;
+        } else if (intervalSeconds < 3600) {
+            const minutes = Math.floor(intervalSeconds / 60);
+            intervalText = `${minutes} menit`;
+        } else {
+            const hours = Math.floor(intervalSeconds / 3600);
+            intervalText = `${hours} jam`;
+        }
+        
+        text.textContent = `Interval: ${intervalText}`;
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
 // Sort current page locally by given field (client-side only)
 function sortTable(field){
     if (!Array.isArray(currentItems) || currentItems.length === 0) return;
@@ -270,7 +418,8 @@ async function exportCsv(){
     const end = document.getElementById('end-date')?.value || '';
     const deviceVal = document.getElementById('device-filter')?.value || 'all';
     const device = (deviceVal==='A' || deviceVal==='B') ? deviceVal : 'all';
-    const params = new URLSearchParams({ start, end, device, page: '1', perPage: '1000', sort: 'desc' });
+    const intervalVal = document.getElementById('interval-filter')?.value || 'all';
+    const params = new URLSearchParams({ start, end, device, interval: intervalVal, page: '1', perPage: '10000', sort: 'desc' });
     try{
         const res = await fetch(`/api/telemetry?${params.toString()}`, {headers:{'Accept':'application/json'}});
         const data = await res.json();
@@ -287,21 +436,20 @@ async function exportCsv(){
 }
 
 function toCsv(rows){
-    const headers = ['timestamp','device','ph','tds','suhu','cal_ph_asam','cal_ph_netral','cal_tds_k','kebun','created_at'];
+    const headers = ['date','time','device','ph','tds','suhu_air','cal_ph_asam','cal_ph_netral','cal_tds_k','kebun'];
     const lines = [headers.join(',')];
     rows.forEach(r=>{
-        const dt = r.timestamp_ms ? new Date(r.timestamp_ms).toISOString() : '';
         const line = [
-            dt,
+            r.date ?? '',
+            r.time ?? '',
             r.device ?? '',
             safeCsv(r.ph),
             safeCsv(r.tds),
-            safeCsv(r.suhu),
+            safeCsv(r.suhu_air),
             safeCsv(r.cal_ph_asam),
             safeCsv(r.cal_ph_netral),
             safeCsv(r.cal_tds_k),
-            r.kebun ?? '',
-            r.created_at ?? ''
+            r.kebun ?? ''
         ].join(',');
         lines.push(line);
     });
