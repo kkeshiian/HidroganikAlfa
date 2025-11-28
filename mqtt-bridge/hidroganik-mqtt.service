@@ -17,7 +17,7 @@ SyslogIdentifier=hidroganik-mqtt
 # Environment variables
 Environment=NODE_ENV=production
 Environment=MQTT_URL=wss://broker.emqx.io:8084/mqtt
-Environment=INGEST_URL=http://localhost:8080/api/telemetry/ingest
+Environment=INGEST_URL=http://192.168.100.87/api/telemetry/ingest
 Environment=INGEST_TOKEN=rahasia-hidroganik-2025
 
 [Install]

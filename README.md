@@ -53,7 +53,7 @@ Install dependencies and run:
 cd mqtt-bridge
 npm init -y
 npm i mqtt axios
-setx INGEST_URL "http://localhost/hidroganik/api/telemetry/ingest"
+setx INGEST_URL "http://192.168.100.87/api/telemetry/ingest"
 setx INGEST_TOKEN "change-me"
 setx MQTT_URL "wss://broker.hivemq.com:8884/mqtt"
 setx MQTT_TOPIC "hidroganik/+/telemetry"

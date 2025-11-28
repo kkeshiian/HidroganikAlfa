@@ -39,7 +39,7 @@ echo.
 echo ========================================
 echo   Service Running
 echo   MQTT: broker.emqx.io:8084
-echo   API: http://localhost:8080
+echo   API: http://192.168.100.87
 echo ========================================
 echo.
 

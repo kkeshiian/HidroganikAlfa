@@ -68,7 +68,7 @@ tasklist | findstr node.exe
 
 ### Cek di Browser:
 
-1. Buka web monitoring: http://localhost:8080
+1. Buka web monitoring: http://192.168.100.87
 2. Halaman Dashboard atau Log Data
 3. Kirim data dari ESP32
 4. Data muncul dalam 1-2 detik
@@ -86,7 +86,7 @@ tasklist | findstr node.exe
 - Cek ESP32 publish ke topic yang benar: `hidroganik/kebun-a/telemetry`
 - Cek MQTT broker: `wss://broker.emqx.io:8084/mqtt`
 - Cek log di terminal MQTT Bridge
-- Cek API endpoint: http://localhost:8080/api/telemetry/latest
+- Cek API endpoint: http://192.168.100.87/api/telemetry/latest
 
 ### Service crash terus?
 
@@ -101,7 +101,7 @@ Buat file `.env` di folder ini untuk custom settings:
 ```env
 MQTT_URL=wss://broker.emqx.io:8084/mqtt
 MQTT_TOPIC=hidroganik/+/telemetry
-INGEST_URL=http://localhost:8080/api/telemetry/ingest
+INGEST_URL=http://192.168.100.87/api/telemetry/ingest
 INGEST_TOKEN=rahasia-hidroganik-2025
 ```
 
