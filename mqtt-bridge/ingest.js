@@ -20,7 +20,7 @@ const TOPIC = process.env.MQTT_TOPIC || "hidroganik/+/telemetry";
 
 // Point to your local CI4 server
 const INGEST_URL =
-  process.env.INGEST_URL || "http://localhost:8080/api/telemetry/ingest";
+  process.env.INGEST_URL || "http://192.168.100.87/api/telemetry/ingest";
 const INGEST_TOKEN = process.env.INGEST_TOKEN || "rahasia-hidroganik-2025"; // must match .env INGEST_TOKEN on server
 // ---------------
 
