@@ -1097,7 +1097,8 @@ function updateDisplayValues(data, device = "A") {
 // Fetch calibrated data from database API
 async function fetchCalibratedData(kebun) {
   try {
-    const response = await fetch(`/api/telemetry/latest?kebun=${kebun.toLowerCase()}`);
+    // const response = await fetch(`/api/telemetry/latest?kebun=${kebun.toLowerCase()}`);
+    fetch(`http://192.168.100.87/api/telemetry/latest?kebun=${kebun.toLowerCase()}`);
     if (!response.ok) {
       console.warn(`Failed to fetch calibrated data for Kebun ${kebun}`);
       return;
